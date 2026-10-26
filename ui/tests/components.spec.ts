@@ -2964,6 +2964,88 @@ test.describe('EventPopover', () => {
     await expect(page.locator('.guest')).toHaveClass(/declined/);
   });
 
+  // Reported from Plamen's calendar (2026-10-26): he answered No to his own
+  // 1:1 and Teodor still expected it. Google mails a guest's No to the
+  // organizer; an organizer's own No goes nowhere, and the meeting stays on
+  // everyone else's calendar. So on your own meeting, No asks first.
+  test.describe('No on your own meeting', () => {
+    const lastRespond = (page: import('@playwright/test').Page) =>
+      page.evaluate(() => (window as any).__lastRespondCall ?? null);
+    const lastDelete = (page: import('@playwright/test').Page) =>
+      page.evaluate(() => (window as any).__lastDelete ?? null);
+
+    test('asks first, says who is not told, and sends nothing yet', async ({ page }) => {
+      await page.goto(show('own-one-on-one'));
+      await page.getByRole('button', { name: 'No', exact: true }).click();
+      const ask = page.getByTestId('own-decline');
+      await expect(ask).toContainText('You organise this');
+      await expect(ask).toContainText('Teodor isn’t told');
+      expect(await lastRespond(page)).toBeNull();
+      // One other person: calling it off is what No almost always means.
+      await expect(page.getByRole('button', { name: 'Cancel the meeting' })).toBeFocused();
+    });
+
+    test('"Cancel the meeting" hands over to the delete confirmation and answers nothing', async ({ page }) => {
+      await page.goto(show('own-one-on-one'));
+      await page.getByRole('button', { name: 'No', exact: true }).click();
+      await page.getByRole('button', { name: 'Cancel the meeting' }).click();
+      expect(await lastDelete(page)).toEqual({ deleted: true });
+      expect(await lastRespond(page)).toBeNull();
+      await expect(page.getByTestId('own-decline')).toHaveCount(0);
+    });
+
+    test('"Just mark me out" answers No as before', async ({ page }) => {
+      await page.goto(show('own-one-on-one'));
+      await page.getByRole('button', { name: 'No', exact: true }).click();
+      await page.getByRole('button', { name: 'Just mark me out' }).click();
+      const call = await lastRespond(page);
+      expect(call.response).toBe('declined');
+      expect(call.scope).toBe('this');
+      expect(await lastDelete(page)).toBeNull();
+      await expect(page.getByRole('button', { name: 'No', exact: true })).toHaveClass(/chosen/);
+    });
+
+    test('the close button withdraws the question and changes nothing', async ({ page }) => {
+      await page.goto(show('own-one-on-one'));
+      await page.getByRole('button', { name: 'No', exact: true }).click();
+      await page.getByRole('button', { name: 'Keep my answer' }).click();
+      await expect(page.getByTestId('own-decline')).toHaveCount(0);
+      expect(await lastRespond(page)).toBeNull();
+      expect(await lastDelete(page)).toBeNull();
+      await expect(page.getByRole('button', { name: 'No', exact: true })).not.toHaveClass(/chosen/);
+    });
+
+    test('a team meeting counts the people still expecting it, and marking out comes first', async ({ page }) => {
+      await page.goto(show('own-weekly-team'));
+      await page.getByRole('button', { name: 'No', exact: true }).click();
+      await expect(page.getByTestId('own-decline')).toContainText('your 3 guests aren’t told');
+      await expect(page.getByRole('button', { name: 'Just mark me out' })).toBeFocused();
+      // Marking out of a series still asks which occurrences, as any answer does.
+      await page.getByRole('button', { name: 'Just mark me out' }).click();
+      expect(await lastRespond(page)).toBeNull();
+      await page.getByRole('button', { name: 'This one' }).click();
+      const call = await lastRespond(page);
+      expect(call.response).toBe('declined');
+      expect(call.scope).toBe('this');
+    });
+
+    test('Yes and Maybe answer straight away, since nobody is left waiting', async ({ page }) => {
+      await page.goto(show('own-one-on-one'));
+      await page.getByRole('button', { name: 'Maybe', exact: true }).click();
+      await expect(page.getByTestId('own-decline')).toHaveCount(0);
+      expect((await lastRespond(page)).response).toBe('tentative');
+    });
+
+    for (const fixture of ['own-caldav-meeting', 'own-meeting-with-a-room']) {
+      test(`No answers straight away when nobody would be left out: ${fixture}`, async ({ page }) => {
+        await page.goto(show(fixture));
+        await page.getByRole('button', { name: 'No', exact: true }).click();
+        await expect(page.getByTestId('own-decline')).toHaveCount(0);
+        expect((await lastRespond(page)).response).toBe('declined');
+      });
+    }
+  });
+
   test('escape closes it even when focus has fallen to the body', async ({ page }) => {
     // Plan 1c shipped this bug once: a keydown handler on the panel misses
     // Escape entirely once a disabled control drops focus to <body>, and a

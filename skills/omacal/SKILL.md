@@ -98,6 +98,7 @@ omacal events create --title "Standup" --date 2026-09-14 --start 09:00 --end 09:
 omacal events update 41 --occurrence 1786352400000 --start 10:00 --end 10:30 --json
 omacal events delete 41 --occurrence 1786352400000 --json
 omacal events respond 41 yes --json          # yes | maybe | no
+omacal events respond 41 no --keep-meeting --json   # own meeting: out, not off
 ```
 
 - `41` and the `--occurrence` value are `events list --json`'s own
@@ -114,6 +115,14 @@ omacal events respond 41 yes --json          # yes | maybe | no
  - `delete` takes no `--notify`. On Google it tells the guests, or for an
    own-copy event it removes the event from the user's calendar only and
    Google tells the organizer they declined. Off Google OmaCal emails nobody.
+ - **A No on the user's own meeting (`organizer: true`) is refused (exit 2)
+   until you say which they meant.** Google emails a guest's No to the
+   organizer, so when the organizer says No nobody is told and the meeting
+   stays on everyone else's calendar. "It's off" and "I'm out" are different
+   requests: ask the user. To call it off, `events delete` (Google emails
+   the guests a cancellation). To mark them out and leave it on for the
+   others, `respond ID no --keep-meeting`. Never tell the user the others
+   "have been told" after a `respond`.
  - `--guest a@b` repeats for multiple guests on create. Creating with
    guests also requires `--notify`, except off Google.
 - **`--repeat daily|weekdays|weekly|monthly|yearly` makes one series instead
