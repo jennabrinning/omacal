@@ -858,6 +858,9 @@
    *  same SettingsModal as the menu item. */
   let settingsOpen = $state(false);
   let combineIdenticalEvents = false;
+  /** Months of history the year views hatch against. Two years until the
+   *  settings arrive, which is also the fresh-install default. */
+  let historySpan = 24;
   /** Whether the start-on-login question has been answered. `true` until the
    *  settings arrive, so the card never flashes for someone who answered. */
   let loginAsked = $state(true);
@@ -896,6 +899,7 @@
         loginAsked = s.startOnLoginAsked;
         desktop = s.desktop;
         combineIdenticalEvents = s.combineIdenticalEvents;
+        historySpan = s.historySpan;
         defaultCalendarId = s.defaultCalendarId;
         defaultEventDurationMinutes = s.defaultEventDurationMinutes;
         setClockFormat(s.timeFormat);
@@ -2485,8 +2489,9 @@
       applyAppearance(s);
     }}
     onsettingschange={(s) => {
-      if (combineIdenticalEvents !== s.combineIdenticalEvents) {
+      if (combineIdenticalEvents !== s.combineIdenticalEvents || historySpan !== s.historySpan) {
         combineIdenticalEvents = s.combineIdenticalEvents;
+        historySpan = s.historySpan;
         void reload();
       }
       defaultCalendarId = s.defaultCalendarId;
